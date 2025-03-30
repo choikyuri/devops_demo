@@ -1,3 +1,8 @@
+# GitHub Actions에서 Gradle로 프로젝트 빌드
+# 두 개의 AWS Ubuntu 서버에 .jar 파일 복사
+# 기존 Java 프로세스를 종료하고 새로 실행
+# SSH 키 설정, mkdir, known_hosts 등 포함
+
 name: Deploy to Ubuntu Server
 
 on:
