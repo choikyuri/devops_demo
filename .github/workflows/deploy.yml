@@ -1,0 +1,60 @@
+name: Deploy to Ubuntu Server
+
+on:
+  push:
+    branches:
+      - main  # main 브랜치에 push될 때 실행
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. GitHub 저장소 체크아웃
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      # 2. JDK 17 환경 설정
+      - name: Set up JDK 17
+        uses: actions/setup-java@v1
+        with:
+          java-version: '17'
+
+      # 3. Gradle Wrapper 실행 권한 부여
+      - name: Set gradlew permissions
+        run: chmod +x ./gradlew
+
+      # 4. Gradle 빌드 (JAR 생성)
+      - name: Build with Gradle
+        run: ./gradlew build
+
+      # 5. SSH 키 파일 생성 및 권한 설정
+      - name: Create SSH key file
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      # 6. SSH 에이전트에 키 등록
+      - name: Add SSH key to agent
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+
+      # 7. EC2 서버의 SSH 호스트 등록 (SSH 경고 방지)
+      - name: Add known_hosts
+        run: ssh-keyscan -t ed25519 43.201.106.249 >> ~/.ssh/known_hosts
+
+      # 8. EC2 서버에 디렉토리 생성 후 JAR 파일 복사
+      - name: Deploy to Server
+        run: |
+          ssh ubuntu@43.201.106.249 "mkdir -p ~/app"
+          scp build/libs/*.jar ubuntu@43.201.106.249:~/app
+
+      # 9. EC2 서버에서 기존 프로세스 종료하고 새로 실행
+      - name: Run SSH command on Server
+        run: |
+          ssh ubuntu@43.201.106.249 << 'EOF'
+            pkill -f 'java -jar' || true
+            nohup java -jar ~/app/devops_demo-0.0.1-SNAPSHOT.jar > log.txt 2>&1 &
+          EOF
