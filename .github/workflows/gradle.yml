@@ -1,4 +1,4 @@
-name: Deploy to Ubuntu Servers
+name: Deploy to Ubuntu Server
 
 on:
   push:
@@ -10,25 +10,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 저장소 코드 체크아웃
+      # 1. GitHub 저장소 체크아웃
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      # 2. JDK 17 설정
+      # 2. JDK 17 환경 설정
       - name: Set up JDK 17
         uses: actions/setup-java@v1
         with:
           java-version: '17'
 
-      # 3. Gradle Wrapper 권한 부여
+      # 3. Gradle Wrapper 실행 권한 부여
       - name: Set gradlew permissions
         run: chmod +x ./gradlew
 
-      # 4. Gradle 빌드 실행
+      # 4. Gradle 빌드 (JAR 생성)
       - name: Build with Gradle
         run: ./gradlew build
 
-      # 5. SSH 키 저장 (실제 파일로)
+      # 5. SSH 키 파일 생성 및 권한 설정
       - name: Create SSH key file
         run: |
           mkdir -p ~/.ssh
@@ -41,34 +41,20 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
 
-      # 7. 두 서버의 SSH 호스트 정보 등록 (경고 방지)
+      # 7. EC2 서버의 SSH 호스트 등록 (SSH 경고 방지)
       - name: Add known_hosts
-        run: |
-          ssh-keyscan -t ed25519 43.201.106.249 >> ~/.ssh/known_hosts
-          ssh-keyscan -t ed25519 13.209.44.100 >> ~/.ssh/known_hosts
+        run: ssh-keyscan -t ed25519 43.201.106.249 >> ~/.ssh/known_hosts
 
-      # ===== Server 1 배포 및 실행 =====
-      - name: Deploy to Server 1
+      # 8. EC2 서버에 디렉토리 생성 후 JAR 파일 복사
+      - name: Deploy to Server
         run: |
           ssh ubuntu@43.201.106.249 "mkdir -p ~/app"
           scp build/libs/*.jar ubuntu@43.201.106.249:~/app
 
-      - name: Run App on Server 1
+      # 9. EC2 서버에서 기존 프로세스 종료하고 새로 실행
+      - name: Run SSH command on Server
         run: |
           ssh ubuntu@43.201.106.249 << 'EOF'
-            pkill -f 'java -jar' || true
-            nohup java -jar ~/app/devops_demo-0.0.1-SNAPSHOT.jar > log.txt 2>&1 &
-          EOF
-
-      # ===== Server 2 배포 및 실행 =====
-      - name: Deploy to Server 2
-        run: |
-          ssh ubuntu@13.209.44.100 "mkdir -p ~/app"
-          scp build/libs/*.jar ubuntu@13.209.44.100:~/app
-
-      - name: Run App on Server 2
-        run: |
-          ssh ubuntu@13.209.44.100 << 'EOF'
             pkill -f 'java -jar' || true
             nohup java -jar ~/app/devops_demo-0.0.1-SNAPSHOT.jar > log.txt 2>&1 &
           EOF
